@@ -9,8 +9,8 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0" rel="stylesheet">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css">
+<script src="https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js"></script>
 <style>
   :root{
     --gold:#E8B84B;
@@ -204,16 +204,57 @@
   .person .nm{font-family:'Poppins',sans-serif; font-weight:600; font-size:16px; color:var(--white); margin-bottom:5px;}
   .person .rl{font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); line-height:1.4;}
 
-  #zona-map{position:relative; z-index:0; isolation:isolate; height:460px; border-radius:var(--radius); overflow:hidden; border:1px solid var(--line); box-shadow:var(--shadow);}
+  /* ===== Mapa 3D de la red ===== */
+  .zmap{position:relative; z-index:0; isolation:isolate; height:520px; border-radius:var(--radius); overflow:hidden; border:1px solid var(--line); box-shadow:var(--shadow); background:#0e0e10;}
+  @media(max-width:600px){ .zmap{height:440px;} }
+  #zona-map{position:absolute; inset:0;}
   .map-error{display:flex; align-items:center; justify-content:center; height:100%; padding:24px; text-align:center; color:var(--muted); font-size:14px;}
-  @media(max-width:600px){ #zona-map{height:340px;} }
+  .zmap-ctrls{position:absolute; top:14px; right:14px; z-index:3; display:flex; flex-direction:column; gap:8px;}
+  .zmap-ctrls button{width:40px; height:40px; border-radius:12px; border:1px solid var(--line); background:rgba(30,30,34,.88); backdrop-filter:blur(6px); color:var(--text); cursor:pointer; display:flex; align-items:center; justify-content:center; transition:background .15s, color .15s, border-color .15s;}
+  .zmap-ctrls button:hover{border-color:var(--gold); color:var(--gold);}
+  .zmap-ctrls button.on{background:var(--gold); color:var(--ink); border-color:var(--gold);}
+  .zmap-ctrls .material-symbols-outlined{font-size:21px;}
+  .zmap-hint{position:absolute; left:14px; top:14px; z-index:3; background:rgba(30,30,34,.88); backdrop-filter:blur(6px); border:1px solid var(--line); color:var(--muted); font-size:12.5px; padding:8px 12px; border-radius:999px; pointer-events:none; transition:opacity .4s;}
+  .zmap-hint b{color:var(--text); font-weight:600;}
+  .zmap-card{position:absolute; left:14px; bottom:14px; z-index:3; width:min(300px, calc(100% - 82px)); background:rgba(26,26,29,.94); backdrop-filter:blur(8px); border:1px solid var(--line); border-radius:16px; padding:18px 18px 16px; box-shadow:var(--shadow); transform:translateY(12px); opacity:0; pointer-events:none; transition:opacity .25s ease, transform .25s ease;}
+  .zmap-card.show{opacity:1; transform:none; pointer-events:auto;}
+  .zmap-card .tag{display:inline-flex; align-items:center; gap:6px; font-size:11px; letter-spacing:.08em; text-transform:uppercase; color:var(--muted); margin-bottom:6px;}
+  .zmap-card .tag i{width:9px; height:9px; border-radius:50%; display:inline-block;}
+  .zmap-card h4{font-size:22px; margin:0 0 4px;}
+  .zmap-card p{margin:0 0 14px; color:var(--muted); font-size:13.5px; line-height:1.5;}
+  .zmap-card .x{position:absolute; top:10px; right:10px; width:30px; height:30px; border-radius:50%; border:0; background:transparent; color:var(--muted); cursor:pointer; display:flex; align-items:center; justify-content:center;}
+  .zmap-card .x:hover{color:var(--text); background:var(--surface2);}
+  .zmap-card .btn{padding:10px 18px; font-size:14px;}
+  .zmap-card .nav{display:flex; justify-content:space-between; align-items:center; margin-top:12px; font-size:12px; color:var(--muted);}
+  .zmap-card .nav button{background:none; border:0; color:var(--muted); cursor:pointer; display:inline-flex; align-items:center; gap:2px; font:inherit; padding:4px 0;}
+  .zmap-card .nav button:hover{color:var(--gold);}
+  @media(max-width:600px){
+    .zmap-card{padding:14px 14px 12px; left:10px; bottom:10px; width:calc(100% - 74px);}
+    .zmap-card h4{font-size:19px;}
+    .zmap-card p{display:none;}
+    .zmap-card .tag{margin-bottom:2px; font-size:10px; padding-right:26px;}
+    .zmap-card .btn{margin-top:8px; padding:9px 14px; font-size:13px;}
+    .zmap-card .nav{margin-top:8px;}
+    .zmap-ctrls{top:10px; right:10px; gap:6px;}
+    .zmap-ctrls button{width:36px; height:36px;}
+    .zmap-hint{left:10px; top:10px;}
+  }
+  .zmap-card .tag{padding-right:28px;}
+  .zmap-card .nav span{white-space:nowrap;}
+  .zmap-tip{background:rgba(26,26,29,.95); border:1px solid var(--line); color:var(--text); font-family:'Inter',sans-serif; font-size:12.5px; padding:6px 10px; border-radius:8px; pointer-events:none;}
+  .maplibregl-popup-content{background:transparent; padding:0; box-shadow:none;}
+  .maplibregl-popup-tip{display:none;}
+  .maplibregl-ctrl-attrib{background:rgba(18,18,20,.7) !important; color:var(--muted);}
+  .maplibregl-ctrl-attrib a{color:var(--muted) !important;}
+  .maplibregl-ctrl-attrib-button{filter:invert(1);}
+  .maplibregl-cooperative-gesture-screen{font-family:'Inter',sans-serif; font-size:15px;}
   .map-legend{display:flex; gap:22px; flex-wrap:wrap; margin-top:16px; font-size:13px; color:var(--muted);}
   .map-legend span.k{display:inline-flex; align-items:center; gap:8px;}
   .map-legend i{width:11px; height:11px; border-radius:50%; display:inline-block;}
-  .leaflet-container{background:var(--alt);}
-  #zona-map .leaflet-tile{filter:invert(1) hue-rotate(180deg) brightness(.95) contrast(.9) saturate(.35);}
-  .leaflet-tooltip{background:var(--surface2); border:1px solid var(--line); color:var(--text); font-family:'Inter',sans-serif; font-size:12.5px; box-shadow:none;}
-  .leaflet-tooltip-top:before{border-top-color:var(--line);}
+  .loc-chips{display:flex; flex-wrap:wrap; gap:8px; margin-top:4px;}
+  .loc-chips button{font-family:'Inter',sans-serif; font-size:13.5px; color:var(--text); background:var(--surface2); border:1px solid var(--line); border-radius:999px; padding:7px 14px; cursor:pointer; transition:border-color .15s, color .15s, background .15s;}
+  .loc-chips button:hover{border-color:var(--gold); color:var(--gold);}
+  .loc-chips button.on{background:var(--gold); border-color:var(--gold); color:var(--ink);}
 
   .cta{background:var(--gold); border-radius:28px; padding:56px 50px; color:var(--ink); text-align:center;}
   .cta h2{color:var(--ink); font-size:29px;}
@@ -418,16 +459,35 @@
     <div class="wrap">
       <div class="sec-head reveal">
         <h2>Red de productores en más de 20 localidades</h2>
-        <p>No atendemos la zona desde una oficina lejana: la recorremos. Pasá el cursor (o tocá, desde el celu) cada punto para ver la localidad.</p>
+        <p>No atendemos la zona desde una oficina lejana: la recorremos. Mové el mapa, giralo y tocá cada localidad para ver dónde estamos.</p>
       </div>
-      <div id="zona-map"></div>
+      <div class="zmap">
+        <div id="zona-map"></div>
+        <div class="zmap-hint" id="zmap-hint"><b>Tocá una localidad</b> · arrastrá para mover</div>
+        <div class="zmap-ctrls" id="zmap-ctrls" hidden>
+          <button type="button" id="zm-in" aria-label="Acercar" title="Acercar"><span class="material-symbols-outlined">add</span></button>
+          <button type="button" id="zm-out" aria-label="Alejar" title="Alejar"><span class="material-symbols-outlined">remove</span></button>
+          <button type="button" id="zm-spin" aria-label="Girar el mapa" title="Girar el mapa"><span class="material-symbols-outlined">360</span></button>
+          <button type="button" id="zm-3d" aria-label="Vista 2D / 3D" title="Vista 2D / 3D"><span class="material-symbols-outlined">view_in_ar</span></button>
+          <button type="button" id="zm-home" aria-label="Volver a la vista inicial" title="Vista inicial"><span class="material-symbols-outlined">home</span></button>
+        </div>
+        <div class="zmap-card" id="zmap-card" role="dialog" aria-live="polite">
+          <button type="button" class="x" id="zc-x" aria-label="Cerrar"><span class="material-symbols-outlined">close</span></button>
+          <div class="tag"><i id="zc-dot"></i><span id="zc-tag"></span></div>
+          <h4 id="zc-name"></h4>
+          <p id="zc-txt"></p>
+          <a class="btn btn-wa" id="zc-wa" href="#" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M17.47 14.38c-.3-.15-1.75-.86-2.02-.96-.27-.1-.47-.15-.67.15-.2.3-.77.96-.94 1.16-.17.2-.35.22-.64.07-.3-.15-1.25-.46-2.38-1.47-.88-.79-1.47-1.76-1.65-2.05-.17-.3-.02-.46.13-.6.13-.13.3-.35.45-.52.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.6-.92-2.2-.24-.58-.49-.5-.67-.5-.17 0-.37-.03-.57-.03-.2 0-.52.07-.79.37-.27.3-1.04 1.01-1.04 2.47s1.07 2.86 1.21 3.06c.15.2 2.1 3.2 5.08 4.49.71.3 1.26.49 1.69.63.71.22 1.36.19 1.87.12.57-.09 1.75-.72 2-1.41.25-.69.25-1.28.17-1.41-.07-.13-.27-.2-.57-.35z"/><path d="M12.04 2C6.58 2 2.13 6.45 2.13 11.91c0 1.75.46 3.45 1.32 4.95L2 22l5.28-1.38c1.45.79 3.08 1.21 4.76 1.21h.01c5.46 0 9.91-4.45 9.91-9.91S17.5 2 12.04 2zm0 18.13h-.01c-1.5 0-2.97-.4-4.25-1.16l-.3-.18-3.13.82.84-3.05-.2-.31c-.84-1.33-1.28-2.87-1.28-4.45 0-4.54 3.7-8.23 8.24-8.23 2.2 0 4.27.86 5.82 2.42a8.17 8.17 0 0 1 2.41 5.82c0 4.54-3.7 8.23-8.24 8.23z"/></svg>Consultar por esta zona</a>
+          <div class="nav"><button type="button" id="zc-prev"><span class="material-symbols-outlined">chevron_left</span>Anterior</button><span id="zc-count"></span><button type="button" id="zc-next">Siguiente<span class="material-symbols-outlined">chevron_right</span></button></div>
+        </div>
+      </div>
       <div class="map-legend">
+        <span class="k"><i style="background:#FFFFFF"></i>Casa central — Hersilia</span>
         <span class="k"><i style="background:#E8B84B"></i>Santa Fe — Noroeste</span>
         <span class="k"><i style="background:#9B9BA1"></i>Santiago del Estero — Centro-Sudeste</span>
       </div>
       <div class="grid grid-2" style="margin-top:22px;">
-        <div class="card reveal"><h4>Santa Fe — Noroeste</h4><p>Tostado · Pozo Borrado · Villa Minetti · Arrufó · Villa Trinidad · San Guillermo · Ceres</p></div>
-        <div class="card reveal"><h4>Santiago del Estero — Centro-Sudeste</h4><p>Bandera · Añatuya · Fernández · Pinto · Selva</p></div>
+        <div class="card reveal"><h4>Santa Fe — Noroeste</h4><div class="loc-chips" id="chips-sf"><button type="button" data-i="0">Hersilia (casa central)</button><button type="button" data-i="1">Tostado</button><button type="button" data-i="2">Pozo Borrado</button><button type="button" data-i="3">Villa Minetti</button><button type="button" data-i="4">Arrufó</button><button type="button" data-i="5">Villa Trinidad</button><button type="button" data-i="6">San Guillermo</button><button type="button" data-i="7">Ceres</button></div></div>
+        <div class="card reveal"><h4>Santiago del Estero — Centro-Sudeste</h4><div class="loc-chips" id="chips-se"><button type="button" data-i="8">Bandera</button><button type="button" data-i="9">Añatuya</button><button type="button" data-i="10">Fernández</button><button type="button" data-i="11">Pinto</button><button type="button" data-i="12">Selva</button></div></div>
       </div>
     </div>
   </section>
@@ -639,7 +699,7 @@
     });
     var panel = document.getElementById('tab-' + name);
     setTimeout(function(){ revealIn(panel); }, 60);
-    if(name === 'inicio' && map){ setTimeout(function(){ map.invalidateSize(); }, 80); }
+    if(name === 'inicio' && map){ setTimeout(function(){ map.resize(); }, 80); }
     if(anchor){
       setTimeout(function(){
         var el = document.getElementById(anchor);
@@ -651,7 +711,9 @@
   }
 
   (function(){
-    var localidades = [
+    /* ===== Mapa 3D de la red (MapLibre + OpenFreeMap, gratis y sin clave) ===== */
+    var LOCS = [
+      {n:"Hersilia", lat:-30.0047, lng:-61.8406, prov:"Santa Fe", central:true},
       {n:"Tostado", lat:-29.2324, lng:-61.77105, prov:"Santa Fe"},
       {n:"Pozo Borrado", lat:-28.9375, lng:-61.7075, prov:"Santa Fe"},
       {n:"Villa Minetti", lat:-28.6225, lng:-61.6294, prov:"Santa Fe"},
@@ -665,39 +727,248 @@
       {n:"Pinto", lat:-29.145, lng:-62.653, prov:"Santiago del Estero"},
       {n:"Selva", lat:-29.77, lng:-62.05, prov:"Santiago del Estero"}
     ];
+    var GOLD = '#E8B84B', GRAY = '#9B9BA1', WHITE = '#FFFFFF';
+    function colorOf(l){ return l.central ? WHITE : (l.prov === 'Santa Fe' ? GOLD : GRAY); }
+    function regionOf(l){ return l.central ? 'Casa central' : (l.prov === 'Santa Fe' ? 'Santa Fe — Noroeste' : 'Santiago del Estero — Centro-Sudeste'); }
+
     var box = document.getElementById('zona-map');
-    if(typeof L === 'undefined'){
-      box.innerHTML = '<div class="map-error">No pudimos cargar el mapa. Abajo tenés todas las localidades donde estamos.</div>';
-      return;
+    var card = document.getElementById('zmap-card');
+    var hint = document.getElementById('zmap-hint');
+    var chips = Array.prototype.slice.call(document.querySelectorAll('.loc-chips button'));
+    var current = -1;
+
+    function waLink(l){
+      var msg = l.central
+        ? 'Hola! Los encontré en la página de Organización Chialvo y quería hacerles una consulta.'
+        : 'Hola! Los encontré en la página de Organización Chialvo. Estoy en ' + l.n + ' y quería hacerles una consulta.';
+      return 'https://wa.me/' + WHATSAPP + '?text=' + encodeURIComponent(msg);
     }
-    try{
-      map = L.map('zona-map', {scrollWheelZoom:false, tap:true}).setView([-29.4, -62.1], 7);
 
-      /* Mapa base: OpenStreetMap (gratis, sin clave), oscurecido por CSS para combinar con el sitio.
-         CARTO dejó de funcionar sin API key. */
-      L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>',
-        maxZoom: 12
-      }).addTo(map);
-
-      var puntos = [];
-      localidades.forEach(function(loc){
-        var color = loc.prov === "Santa Fe" ? "#E8B84B" : "#9B9BA1";
-        var m = L.circleMarker([loc.lat, loc.lng], {
-          radius: 8, fillColor: color, color: "#0A0A0B", weight: 2, opacity: 1, fillOpacity: 0.95
-        }).addTo(map).bindTooltip(loc.n + " (" + loc.prov + ")", {direction:"top", offset:[0,-6]});
-        /* en celular no hay "pasar el cursor": al tocar el punto se muestra el nombre */
-        m.on('click', function(){ m.openTooltip(); });
-        puntos.push([loc.lat, loc.lng]);
+    function fail(){
+      box.innerHTML = '<div class="map-error">No pudimos cargar el mapa en este dispositivo. Abajo tenés todas las localidades donde estamos.</div>';
+      hint.style.display = 'none';
+      /* sin mapa, los botones de localidad igual abren WhatsApp */
+      chips.forEach(function(b){
+        b.addEventListener('click', function(){ window.open(waLink(LOCS[+b.dataset.i]), '_blank', 'noopener'); });
       });
-      map.fitBounds(puntos, {padding:[30,30]});
-
-      /* recalcula el tamaño cuando terminan de cargar fuentes e imágenes */
-      window.addEventListener('load', function(){ map.invalidateSize(); });
-    }catch(err){
-      box.innerHTML = '<div class="map-error">No pudimos cargar el mapa. Abajo tenés todas las localidades donde estamos.</div>';
-      if(window.console){ console.error(err); }
     }
+
+    function webglOk(){
+      try{ var c = document.createElement('canvas'); return !!(window.WebGLRenderingContext && (c.getContext('webgl2') || c.getContext('webgl'))); }
+      catch(e){ return false; }
+    }
+    if(typeof maplibregl === 'undefined' || !webglOk()){ fail(); return; }
+
+    /* columna = polígono circular alrededor de cada localidad */
+    function ring(lat, lng, km){
+      var pts = [], R = 6371, n = 40;
+      for(var i = 0; i <= n; i++){
+        var a = 2 * Math.PI * i / n;
+        var dLat = (km / R) * Math.cos(a) * 180 / Math.PI;
+        var dLng = (km / R) * Math.sin(a) * 180 / Math.PI / Math.cos(lat * Math.PI / 180);
+        pts.push([lng + dLng, lat + dLat]);
+      }
+      return [pts];
+    }
+    var cols = {type:'FeatureCollection', features: LOCS.map(function(l, i){
+      return {type:'Feature', id:i, properties:{n:l.n, c:colorOf(l), h:l.central ? 32000 : 20000},
+              geometry:{type:'Polygon', coordinates: ring(l.lat, l.lng, l.central ? 4.2 : 3.4)}};
+    })};
+    var pts = {type:'FeatureCollection', features: LOCS.map(function(l, i){
+      return {type:'Feature', id:i, properties:{n:l.n, c:colorOf(l)}, geometry:{type:'Point', coordinates:[l.lng, l.lat]}};
+    })};
+
+    var bounds = new maplibregl.LngLatBounds();
+    LOCS.forEach(function(l){ bounds.extend([l.lng, l.lat]); });
+    var small = window.matchMedia('(max-width:600px)').matches;
+    var HOME = {pitch: 52, bearing: -18, padding: small ? {top:60, bottom:60, left:30, right:70} : {top:80, bottom:80, left:80, right:100}};
+
+    try{
+      map = new maplibregl.Map({
+        container: 'zona-map',
+        style: 'https://tiles.openfreemap.org/styles/dark',
+        bounds: bounds,
+        fitBoundsOptions: HOME,
+        pitch: HOME.pitch, bearing: HOME.bearing,
+        maxPitch: 70, minZoom: 5, maxZoom: 12,
+        cooperativeGestures: true,
+        attributionControl: {compact: true},
+        locale: {
+          'CooperativeGesturesHandler.WindowsHelpText': 'Usá Ctrl + scroll para hacer zoom en el mapa',
+          'CooperativeGesturesHandler.MacHelpText': 'Usá ⌘ + scroll para hacer zoom en el mapa',
+          'CooperativeGesturesHandler.MobileHelpText': 'Usá dos dedos para mover el mapa'
+        }
+      });
+    }catch(e){ if(window.console){ console.error(e); } fail(); return; }
+
+    map.on('error', function(e){ if(window.console){ console.warn('mapa:', e && e.error ? e.error.message : e); } });
+
+    map.on('load', function(){
+      document.getElementById('zmap-ctrls').hidden = false;
+
+      map.addSource('locs-col', {type:'geojson', data:cols});
+      map.addSource('locs-pt', {type:'geojson', data:pts});
+
+      /* halo en el piso */
+      map.addLayer({id:'locs-halo', type:'circle', source:'locs-pt', paint:{
+        'circle-color': ['get','c'],
+        'circle-radius': ['interpolate',['linear'],['zoom'], 5,14, 8,30, 11,70],
+        'circle-blur': 1,
+        'circle-opacity': ['case',['boolean',['feature-state','sel'],false], .55, ['boolean',['feature-state','hov'],false], .45, .22],
+        'circle-pitch-alignment': 'map'
+      }});
+
+      /* columnas 3D */
+      map.addLayer({id:'locs-3d', type:'fill-extrusion', source:'locs-col', paint:{
+        'fill-extrusion-color': ['case',
+          ['boolean',['feature-state','sel'],false], '#FFE7A8',
+          ['boolean',['feature-state','hov'],false], '#F6D27A',
+          ['get','c']],
+        'fill-extrusion-height': 0,
+        'fill-extrusion-base': 0,
+        'fill-extrusion-opacity': .92,
+        'fill-extrusion-vertical-gradient': true
+      }});
+
+      /* nombres */
+      map.addLayer({id:'locs-label', type:'symbol', source:'locs-pt', layout:{
+        'text-field': ['get','n'],
+        'text-font': ['Noto Sans Regular'],
+        'text-size': ['interpolate',['linear'],['zoom'], 5,10, 8,13, 11,16],
+        'text-offset': [0, 1.3],
+        'text-anchor': 'top',
+        'text-allow-overlap': false
+      }, paint:{
+        'text-color': '#EDEDEE', 'text-halo-color': '#0A0A0B', 'text-halo-width': 1.6
+      }});
+
+      /* animación: las columnas crecen desde el piso */
+      var t0 = null, DUR = 1400;
+      function grow(ts){
+        if(t0 === null) t0 = ts;
+        var k = Math.min(1, (ts - t0) / DUR);
+        var e = 1 - Math.pow(1 - k, 3);
+        map.setPaintProperty('locs-3d', 'fill-extrusion-height',
+          ['*', ['get','h'], e, ['case',['boolean',['feature-state','sel'],false], 1.35, ['boolean',['feature-state','hov'],false], 1.15, 1]]);
+        if(k < 1) requestAnimationFrame(grow);
+      }
+      /* arranca cuando el mapa entra en pantalla */
+      if('IntersectionObserver' in window){
+        var seen = new IntersectionObserver(function(es){
+          if(es[0].isIntersecting){ requestAnimationFrame(grow); seen.disconnect(); }
+        }, {threshold:.3});
+        seen.observe(box);
+      } else { requestAnimationFrame(grow); }
+
+      /* hover (escritorio) */
+      var hov = null;
+      var tip = new maplibregl.Popup({closeButton:false, closeOnClick:false, offset:14, className:'zmap-pop'});
+      function setHov(id){
+        if(hov !== null){ map.setFeatureState({source:'locs-col', id:hov}, {hov:false}); map.setFeatureState({source:'locs-pt', id:hov}, {hov:false}); }
+        hov = id;
+        if(id !== null){ map.setFeatureState({source:'locs-col', id:id}, {hov:true}); map.setFeatureState({source:'locs-pt', id:id}, {hov:true}); }
+      }
+      ['locs-3d','locs-halo'].forEach(function(layer){
+        map.on('mousemove', layer, function(e){
+          var f = e.features && e.features[0]; if(!f) return;
+          map.getCanvas().style.cursor = 'pointer';
+          if(hov !== f.id){ setHov(f.id); }
+          var l = LOCS[f.id];
+          tip.setLngLat([l.lng, l.lat]).setHTML('<div class="zmap-tip">' + l.n + ' · ' + (l.central ? 'Casa central' : l.prov) + '</div>').addTo(map);
+        });
+        map.on('mouseleave', layer, function(){ map.getCanvas().style.cursor = ''; setHov(null); tip.remove(); });
+        map.on('click', layer, function(e){ var f = e.features && e.features[0]; if(f){ select(f.id, true); } });
+      });
+
+      /* click fuera de una localidad cierra la ficha */
+      map.on('click', function(e){
+        var hit = map.queryRenderedFeatures(e.point, {layers:['locs-3d','locs-halo']});
+        if(!hit.length){ closeCard(); }
+      });
+
+      map.on('dragstart', function(){ hint.style.opacity = '0'; });
+    });
+
+    /* ===== Ficha de localidad ===== */
+    function select(i, fly){
+      if(!map || !map.getSource('locs-col')) return;
+      if(current >= 0){ map.setFeatureState({source:'locs-col', id:current}, {sel:false}); map.setFeatureState({source:'locs-pt', id:current}, {sel:false}); }
+      current = i;
+      map.setFeatureState({source:'locs-col', id:i}, {sel:true});
+      map.setFeatureState({source:'locs-pt', id:i}, {sel:true});
+      var l = LOCS[i];
+      document.getElementById('zc-dot').style.background = colorOf(l);
+      document.getElementById('zc-tag').textContent = regionOf(l);
+      document.getElementById('zc-name').textContent = l.n;
+      document.getElementById('zc-txt').textContent = l.central
+        ? 'Nuestra oficina central: desde acá damos soporte a asegurados y productores de toda la red.'
+        : 'Tenemos productores asesores en ' + l.n + ' (' + l.prov + '). Escribinos y te ponemos en contacto con quien te atiende en la zona.';
+      document.getElementById('zc-wa').href = waLink(l);
+      document.getElementById('zc-count').textContent = (i + 1) + ' de ' + LOCS.length;
+      card.classList.add('show');
+      hint.style.opacity = '0';
+      chips.forEach(function(b){ b.classList.toggle('on', +b.dataset.i === i); });
+      if(fly){
+        stopSpin();
+        map.flyTo({center:[l.lng, l.lat], zoom: Math.max(map.getZoom(), 8.2), pitch: 58,
+                   bearing: map.getBearing(), offset: small ? [0, -95] : [80, -30], speed: .9, curve: 1.3, essential: true});
+      }
+    }
+    function closeCard(){
+      card.classList.remove('show');
+      if(current >= 0 && map && map.getSource('locs-col')){
+        map.setFeatureState({source:'locs-col', id:current}, {sel:false});
+        map.setFeatureState({source:'locs-pt', id:current}, {sel:false});
+      }
+      current = -1;
+      chips.forEach(function(b){ b.classList.remove('on'); });
+    }
+    document.getElementById('zc-x').addEventListener('click', closeCard);
+    document.getElementById('zc-prev').addEventListener('click', function(){ select((current - 1 + LOCS.length) % LOCS.length, true); });
+    document.getElementById('zc-next').addEventListener('click', function(){ select((current + 1) % LOCS.length, true); });
+
+    chips.forEach(function(b){
+      b.addEventListener('click', function(){
+        var i = +b.dataset.i;
+        document.getElementById('zona').scrollIntoView({behavior:'smooth', block:'start'});
+        setTimeout(function(){ select(i, true); }, 350);
+      });
+    });
+
+    /* ===== Controles ===== */
+    var spinning = false, spinRaf = null, last = null;
+    function spinStep(ts){
+      if(!spinning) return;
+      if(last !== null){ map.setBearing(map.getBearing() + (ts - last) * 0.006); }
+      last = ts; spinRaf = requestAnimationFrame(spinStep);
+    }
+    function stopSpin(){
+      spinning = false; last = null; if(spinRaf) cancelAnimationFrame(spinRaf);
+      document.getElementById('zm-spin').classList.remove('on');
+    }
+    document.getElementById('zm-in').addEventListener('click', function(){ map.zoomIn(); });
+    document.getElementById('zm-out').addEventListener('click', function(){ map.zoomOut(); });
+    document.getElementById('zm-spin').addEventListener('click', function(){
+      if(spinning){ stopSpin(); return; }
+      spinning = true; this.classList.add('on');
+      if(map.getPitch() < 30){ map.easeTo({pitch: HOME.pitch, duration: 600}); document.getElementById('zm-3d').classList.remove('on'); }
+      spinRaf = requestAnimationFrame(spinStep);
+    });
+    document.getElementById('zm-3d').addEventListener('click', function(){
+      var flat = map.getPitch() > 5;
+      stopSpin();
+      map.easeTo({pitch: flat ? 0 : HOME.pitch, bearing: flat ? 0 : HOME.bearing, duration: 800});
+      this.classList.toggle('on', flat);
+    });
+    document.getElementById('zm-home').addEventListener('click', function(){
+      stopSpin(); closeCard();
+      document.getElementById('zm-3d').classList.remove('on');
+      map.fitBounds(bounds, {padding: HOME.padding, pitch: HOME.pitch, bearing: HOME.bearing, duration: 1200});
+    });
+    map.on('mousedown', stopSpin);
+    map.on('touchstart', stopSpin);
+
+    window.addEventListener('load', function(){ map.resize(); });
   })();
 
   var io = new IntersectionObserver(function(entries){
