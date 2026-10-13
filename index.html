@@ -204,7 +204,9 @@
   .person .nm{font-family:'Poppins',sans-serif; font-weight:600; font-size:16px; color:var(--white); margin-bottom:5px;}
   .person .rl{font-size:12px; font-weight:700; letter-spacing:.06em; text-transform:uppercase; color:var(--gold); line-height:1.4;}
 
-  #zona-map{height:460px; border-radius:var(--radius); overflow:hidden; border:1px solid var(--line); box-shadow:var(--shadow);}
+  #zona-map{position:relative; z-index:0; isolation:isolate; height:460px; border-radius:var(--radius); overflow:hidden; border:1px solid var(--line); box-shadow:var(--shadow);}
+  #zona-map.osm-fallback .leaflet-tile{filter:invert(1) hue-rotate(180deg) brightness(.9) contrast(.9) saturate(.6);}
+  .map-error{display:flex; align-items:center; justify-content:center; height:100%; padding:24px; text-align:center; color:var(--muted); font-size:14px;}
   @media(max-width:600px){ #zona-map{height:340px;} }
   .map-legend{display:flex; gap:22px; flex-wrap:wrap; margin-top:16px; font-size:13px; color:var(--muted);}
   .map-legend span.k{display:inline-flex; align-items:center; gap:8px;}
@@ -417,7 +419,7 @@
     <div class="wrap">
       <div class="sec-head reveal">
         <h2>Red de productores en más de 20 localidades</h2>
-        <p>No atendemos la zona desde una oficina lejana: la recorremos. Pasá el cursor por cada punto para ver la localidad.</p>
+        <p>No atendemos la zona desde una oficina lejana: la recorremos. Pasá el cursor (o tocá, desde el celu) cada punto para ver la localidad.</p>
       </div>
       <div id="zona-map"></div>
       <div class="map-legend">
@@ -664,17 +666,52 @@
       {n:"Pinto", lat:-29.145, lng:-62.653, prov:"Santiago del Estero"},
       {n:"Selva", lat:-29.77, lng:-62.05, prov:"Santiago del Estero"}
     ];
-    map = L.map('zona-map', {scrollWheelZoom:false}).setView([-29.4, -62.1], 7);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; OpenStreetMap &copy; CARTO',
-      maxZoom: 12
-    }).addTo(map);
-    localidades.forEach(function(loc){
-      var color = loc.prov === "Santa Fe" ? "#E8B84B" : "#9B9BA1";
-      L.circleMarker([loc.lat, loc.lng], {
-        radius: 8, fillColor: color, color: "#0A0A0B", weight: 2, opacity: 1, fillOpacity: 0.95
-      }).addTo(map).bindTooltip(loc.n + " (" + loc.prov + ")", {direction:"top", offset:[0,-6]});
-    });
+    var box = document.getElementById('zona-map');
+    if(typeof L === 'undefined'){
+      box.innerHTML = '<div class="map-error">No pudimos cargar el mapa. Abajo tenés todas las localidades donde estamos.</div>';
+      return;
+    }
+    try{
+      map = L.map('zona-map', {scrollWheelZoom:false, tap:true}).setView([-29.4, -62.1], 7);
+
+      /* Mapa base oscuro (CARTO); si sus tiles fallan, pasamos a OpenStreetMap */
+      var base = L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; OpenStreetMap &copy; CARTO',
+        subdomains: 'abcd',
+        maxZoom: 12
+      }).addTo(map);
+      var fallos = 0, cambiado = false;
+      base.on('tileerror', function(){
+        fallos++;
+        if(fallos >= 3 && !cambiado){
+          cambiado = true;
+          map.removeLayer(base);
+          box.classList.add('osm-fallback');
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; OpenStreetMap',
+            maxZoom: 12
+          }).addTo(map);
+        }
+      });
+
+      var puntos = [];
+      localidades.forEach(function(loc){
+        var color = loc.prov === "Santa Fe" ? "#E8B84B" : "#9B9BA1";
+        var m = L.circleMarker([loc.lat, loc.lng], {
+          radius: 8, fillColor: color, color: "#0A0A0B", weight: 2, opacity: 1, fillOpacity: 0.95
+        }).addTo(map).bindTooltip(loc.n + " (" + loc.prov + ")", {direction:"top", offset:[0,-6]});
+        /* en celular no hay "pasar el cursor": al tocar el punto se muestra el nombre */
+        m.on('click', function(){ m.openTooltip(); });
+        puntos.push([loc.lat, loc.lng]);
+      });
+      map.fitBounds(puntos, {padding:[30,30]});
+
+      /* recalcula el tamaño cuando terminan de cargar fuentes e imágenes */
+      window.addEventListener('load', function(){ map.invalidateSize(); });
+    }catch(err){
+      box.innerHTML = '<div class="map-error">No pudimos cargar el mapa. Abajo tenés todas las localidades donde estamos.</div>';
+      if(window.console){ console.error(err); }
+    }
   })();
 
   var io = new IntersectionObserver(function(entries){
